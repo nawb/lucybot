@@ -1,35 +1,74 @@
+import sys, os
 import twitter
 from pprint import pprint
+from time import sleep
 
-api = twitter.Api(consumer_key='CbCL6QCau7DcVcEebAD8iQwVI',
-	consumer_secret='yuZZyBjaMDWA7WgNLkwIYl4j5aiq33Jtq6KaTedFprAJSN916i',
-	access_token_key='798741552424099840-eTcd1voITUaC6bDppSJfIc4h3fr1Yat',
-	access_token_secret='hbrTGlXnu4WilRcNxLZhIaHTnzdqWb2U89czXuKJeXal4')
+def scrapeTweetsFromPublicStream():
+	pass
 
-api.VerifyCredentials() #to debug
+def gettweetsfromfile(filename):
+	api = twitter.Api(consumer_key='CbCL6QCau7DcVcEebAD8iQwVI',
+		consumer_secret='yuZZyBjaMDWA7WgNLkwIYl4j5aiq33Jtq6KaTedFprAJSN916i',
+		access_token_key='798741552424099840-eTcd1voITUaC6bDppSJfIc4h3fr1Yat',
+		access_token_secret='hbrTGlXnu4WilRcNxLZhIaHTnzdqWb2U89czXuKJeXal4')
 
-print("\n\nWe're good to go.\n")
+	api.VerifyCredentials() #to debug
 
-tweets = {217736276747620353,
-217736622647676928,
-217736837568020481}
+	print("\n\nGetting tweets...")
+	print("You will see some SSL errors..ignore them\n")
+	sleep(2)
 
-for id in tweets:
+	outfile = open("out", "w")
+
+	linecnt = 0
+	skippedlines = []
+
+	for line in open(filename, "r"):
+		linecnt+=1
+		conversation = []
+		for id in line.split():		
+			try:
+				tweet = api.GetStatus(status_id=id)
+				#print("\n>> FOUND TWEET AT ID..."+str(id)+"<<\n")
+				conversation.append(tweet)
+
+			except twitter.error.TwitterError as e:
+				skippedlines.append(linecnt)
+				if e.message[0]['message']:
+					if "Rate limit" in e.message[0]['message']:
+						print("Rate limit exceeded..wait 15 minutes.")
+						sleep(15*60+5)
+					elif "No status found with that ID" in e.message[0]['message']:
+						print("\n>> "+id+" tweet doesn't exist<<\n")
+					else:
+						print(e)
+					break			
+
+		#if len(conversation) < 3 and len(conversation) > 0:
+		#	outfile.write(">>> Something missing here! <<<")
+		#	outfile.write(conversation[0].id_str)
+
+		if len(conversation) == 3:
+			outfile.write("\n\n")
+			for t in conversation:
+				try:
+					outs = "%20s: %s\n" %(t.user.screen_name, t.text)
+					outfile.write(outs)
+				except UnicodeError:
+					outfile.write(">>> this tweet or user has a non-ascii character <<<")
+					outs = "".join(i for i in outs if ord(i)<128) #remove nonAscii
+					outfile.write(outs)
+
+	outfile.write("Skipped "+str(len(skippedlines))+" lines")
+
+if __name__ == "__main__":
 	try:
-		tweet = api.GetStatus(status_id=id)
-		print("FOUND TWEET AT ID..."+str(id))		
-		print(tweet.user.screen_name)
-		print(tweet.text)
-		if tweet.geo:
-			print(tweet.geo)
-		if tweet.in_reply_to_status_id:
-			print(tweet.in_reply_to_status_id)
-	except twitter.error.TwitterError as e:
-		print(e[0][0]['message']+".."+str(id))	
-
-#print(tweets['in_reply_to_status_id'])
-
-
+		if os.exist(sys.argv[1]):
+			gettweetsfromfile(sys.argv[1])
+		else:
+			scrapeTweetsFromPublicStream()
+	except KeyboardInterrupt:
+		pass
 
 #########################################
 ### METHODS FOR A TWITTER STATUS OBJECT
